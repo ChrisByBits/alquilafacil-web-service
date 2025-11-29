@@ -27,4 +27,26 @@ public class ReservationRepository(AppDbContext context) : BaseRepository<Reserv
     {
         return await Context.Set<Reservation>().Where(r => localIdsList.Contains(r.LocalId)).ToListAsync();
     }
+
+    public async Task<bool> HasOverlappingReservationAsync(int localId, DateTime startDate, DateTime endDate, int? excludeReservationId = null)
+    {
+        var query = Context.Set<Reservation>()
+            .Where(r => r.LocalId == localId)
+            .Where(r => r.StartDate < endDate && r.EndDate > startDate); // Overlap condition
+
+        if (excludeReservationId.HasValue)
+        {
+            query = query.Where(r => r.Id != excludeReservationId.Value);
+        }
+
+        return await query.AnyAsync();
+    }
+
+    public async Task<IEnumerable<Reservation>> GetOverlappingReservationsAsync(int localId, DateTime startDate, DateTime endDate)
+    {
+        return await Context.Set<Reservation>()
+            .Where(r => r.LocalId == localId)
+            .Where(r => r.StartDate < endDate && r.EndDate > startDate)
+            .ToListAsync();
+    }
 }

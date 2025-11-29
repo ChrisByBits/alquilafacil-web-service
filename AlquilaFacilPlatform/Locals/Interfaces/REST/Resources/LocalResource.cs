@@ -10,5 +10,7 @@ public record LocalResource(
     IEnumerable<string> PhotoUrls,
     string Features,
     int LocalCategoryId,
-    int UserId
+    int UserId,
+    double? Latitude,
+    double? Longitude
 );

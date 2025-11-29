@@ -15,6 +15,7 @@ public partial class Profile
         UserId = 0;
         BankAccountNumber = "";
         InterbankAccountNumber = "";
+        AvatarUrl = "";
     }
     
     public Profile(CreateProfileCommand command)
@@ -26,6 +27,7 @@ public partial class Profile
         UserId = command.UserId;
         BankAccountNumber = "";
         InterbankAccountNumber = "";
+        AvatarUrl = "";
     }
     
     public void Update(UpdateProfileCommand command)
@@ -38,14 +40,20 @@ public partial class Profile
         InterbankAccountNumber = command.InterbankAccountNumber;
     }
 
+    public void UpdateAvatar(string avatarUrl)
+    {
+        AvatarUrl = avatarUrl;
+    }
+
     public int Id { get; set; }
     public PersonName Name { get; private set; }
     public DateOfBirth Birth { get; private set; }
     public Phone PhoneN { get; private set; }
     public DocumentNumber DocumentN { get; private set; }
-    public string BankAccountNumber { get; private set; }         
-    public string InterbankAccountNumber { get; private set; } 
-    
+    public string BankAccountNumber { get; private set; }
+    public string InterbankAccountNumber { get; private set; }
+    public string AvatarUrl { get; private set; }
+
     public int UserId { get; set; }
     public string FullName => Name.FullName;
     public string BirthDate => Birth.BirthDate;

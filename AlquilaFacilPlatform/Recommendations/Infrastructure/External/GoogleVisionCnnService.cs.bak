@@ -1,0 +1,335 @@
+using Google.Cloud.Vision.V1;
+using AlquilaFacilPlatform.Locals.Domain.Repositories;
+using AlquilaFacilPlatform.Recommendations.Application.Internal.OutboundServices;
+using AlquilaFacilPlatform.Recommendations.Domain.Model.ValueObjects;
+
+namespace AlquilaFacilPlatform.Recommendations.Infrastructure.External;
+
+public class GoogleVisionCnnService : ICnnRecommendationService
+{
+    private readonly ImageAnnotatorClient _client;
+    private readonly ILocalRepository _localRepository;
+    private readonly ILogger<GoogleVisionCnnService> _logger;
+
+    // Cache simple en memoria para features de imágenes
+    private readonly Dictionary<string, ImageFeatures> _featureCache = new();
+
+    public GoogleVisionCnnService(
+        ILocalRepository localRepository,
+        ILogger<GoogleVisionCnnService> logger)
+    {
+        _localRepository = localRepository;
+        _logger = logger;
+
+        try
+        {
+            // El cliente se configura automáticamente con la variable de entorno
+            _client = ImageAnnotatorClient.Create();
+            _logger.LogInformation("Google Vision API client initialized successfully");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to initialize Google Vision API client");
+            throw;
+        }
+    }
+
+    public async Task<IEnumerable<int>> GetRecommendationsForUserAsync(int userId, int limit)
+    {
+        try
+        {
+            _logger.LogInformation("Getting recommendations for user {UserId}", userId);
+
+            // TODO: Implementar lógica de favoritos cuando exista en el repositorio
+            // Por ahora, retornar los más populares
+            return await GetPopularLocalsAsync(limit);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting recommendations for user {UserId}", userId);
+            return await GetPopularLocalsAsync(limit);
+        }
+    }
+
+    public async Task<IEnumerable<int>> GetSimilarLocalsAsync(int localId, int limit)
+    {
+        try
+        {
+            _logger.LogInformation("Finding similar locals for local {LocalId}", localId);
+
+            var local = await _localRepository.FindByIdAsync(localId);
+            if (local == null)
+            {
+                _logger.LogWarning("Local {LocalId} not found", localId);
+                return Enumerable.Empty<int>();
+            }
+
+            // Obtener la foto principal
+            var mainPhotoUrl = local.LocalPhotos?.FirstOrDefault()?.Url;
+            if (string.IsNullOrEmpty(mainPhotoUrl))
+            {
+                _logger.LogWarning("Local {LocalId} has no photos", localId);
+                return await GetPopularLocalsAsync(limit);
+            }
+
+            // Analizar la imagen del local objetivo
+            var targetFeatures = await AnalyzeImageAsync(mainPhotoUrl);
+
+            // Obtener todos los locales de la misma categoría
+            var candidates = await _localRepository.FindByLocalCategoryIdAsync(local.LocalCategoryId);
+
+            // Calcular similitud con cada candidato
+            var similarities = new List<(int localId, double score)>();
+
+            foreach (var candidate in candidates.Where(c => c.Id != localId))
+            {
+                var candidatePhotoUrl = candidate.LocalPhotos?.FirstOrDefault()?.Url;
+                if (string.IsNullOrEmpty(candidatePhotoUrl))
+                    continue;
+
+                try
+                {
+                    var candidateFeatures = await AnalyzeImageAsync(candidatePhotoUrl);
+                    var similarity = CalculateSimilarity(targetFeatures, candidateFeatures);
+                    similarities.Add((candidate.Id, similarity));
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to analyze candidate local {LocalId}", candidate.Id);
+                }
+            }
+
+            // Retornar los más similares
+            var results = similarities
+                .OrderByDescending(s => s.score)
+                .Take(limit)
+                .Select(s => s.localId)
+                .ToList();
+
+            _logger.LogInformation("Found {Count} similar locals for {LocalId}", results.Count, localId);
+
+            return results;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error finding similar locals for {LocalId}", localId);
+            return Enumerable.Empty<int>();
+        }
+    }
+
+    public async Task<IEnumerable<int>> GetRecommendationsByImageAsync(string imageUrl, int limit)
+    {
+        try
+        {
+            _logger.LogInformation("Finding locals by image: {ImageUrl}", imageUrl);
+
+            // Analizar la imagen proporcionada
+            var targetFeatures = await AnalyzeImageAsync(imageUrl);
+
+            // Obtener todos los locales
+            var allLocals = await _localRepository.GetAllAsync();
+            var similarities = new List<(int localId, double score)>();
+
+            foreach (var local in allLocals)
+            {
+                var localPhotoUrl = local.LocalPhotos?.FirstOrDefault()?.Url;
+                if (string.IsNullOrEmpty(localPhotoUrl))
+                    continue;
+
+                try
+                {
+                    var localFeatures = await AnalyzeImageAsync(localPhotoUrl);
+                    var similarity = CalculateSimilarity(targetFeatures, localFeatures);
+                    similarities.Add((local.Id, similarity));
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to analyze local {LocalId}", local.Id);
+                }
+            }
+
+            var results = similarities
+                .OrderByDescending(s => s.score)
+                .Take(limit)
+                .Select(s => s.localId)
+                .ToList();
+
+            _logger.LogInformation("Found {Count} locals matching image", results.Count);
+
+            return results;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error finding locals by image");
+            return Enumerable.Empty<int>();
+        }
+    }
+
+    private async Task<ImageFeatures> AnalyzeImageAsync(string imageUrl)
+    {
+        // Verificar cache
+        if (_featureCache.TryGetValue(imageUrl, out var cachedFeatures))
+        {
+            _logger.LogDebug("Using cached features for {ImageUrl}", imageUrl);
+            return cachedFeatures;
+        }
+
+        _logger.LogDebug("Analyzing image: {ImageUrl}", imageUrl);
+
+        var image = Image.FromUri(imageUrl);
+
+        // Obtener labels (clasificación) - 10 etiquetas máximo
+        var labels = await _client.DetectLabelsAsync(image, maxResults: 10);
+
+        // Obtener colores dominantes
+        var imageProperties = await _client.DetectImagePropertiesAsync(image);
+
+        // Obtener objetos detectados
+        var objects = await _client.DetectLocalizedObjectsAsync(image);
+
+        var features = new ImageFeatures
+        {
+            Labels = labels.Select(l => new LabelFeature
+            {
+                Description = l.Description,
+                Score = l.Score
+            }).ToList(),
+
+            DominantColors = imageProperties.DominantColors.Colors
+                .Take(5) // Top 5 colores
+                .Select(c => new ColorFeature
+                {
+                    Red = c.Color.Red ?? 0,
+                    Green = c.Color.Green ?? 0,
+                    Blue = c.Color.Blue ?? 0,
+                    PixelFraction = c.PixelFraction,
+                    Score = c.Score
+                }).ToList(),
+
+            Objects = objects.Select(o => new ObjectFeature
+            {
+                Name = o.Name,
+                Score = o.Score
+            }).ToList()
+        };
+
+        // Guardar en cache
+        _featureCache[imageUrl] = features;
+
+        _logger.LogDebug("Image analyzed: {LabelCount} labels, {ColorCount} colors, {ObjectCount} objects",
+            features.Labels.Count, features.DominantColors.Count, features.Objects.Count);
+
+        return features;
+    }
+
+    private double CalculateSimilarity(ImageFeatures features1, ImageFeatures features2)
+    {
+        // Calcular similitud en tres dimensiones
+        double labelSimilarity = CalculateLabelSimilarity(features1.Labels, features2.Labels);
+        double colorSimilarity = CalculateColorSimilarity(features1.DominantColors, features2.DominantColors);
+        double objectSimilarity = CalculateObjectSimilarity(features1.Objects, features2.Objects);
+
+        // Pesos ajustables según importancia
+        // Labels: 40% - Lo más importante (jardín, piscina, etc.)
+        // Colors: 30% - Importante para estética
+        // Objects: 30% - Detalles específicos
+        return (labelSimilarity * 0.4) + (colorSimilarity * 0.3) + (objectSimilarity * 0.3);
+    }
+
+    private double CalculateLabelSimilarity(List<LabelFeature> labels1, List<LabelFeature> labels2)
+    {
+        if (!labels1.Any() || !labels2.Any())
+            return 0;
+
+        // Calcular similitud de Jaccard con pesos
+        var set1 = labels1.ToDictionary(l => l.Description.ToLower(), l => l.Score);
+        var set2 = labels2.ToDictionary(l => l.Description.ToLower(), l => l.Score);
+
+        var allLabels = set1.Keys.Union(set2.Keys).ToList();
+        double intersection = 0;
+        double union = 0;
+
+        foreach (var label in allLabels)
+        {
+            var score1 = set1.GetValueOrDefault(label, 0f);
+            var score2 = set2.GetValueOrDefault(label, 0f);
+
+            intersection += Math.Min(score1, score2);
+            union += Math.Max(score1, score2);
+        }
+
+        return union > 0 ? intersection / union : 0;
+    }
+
+    private double CalculateColorSimilarity(List<ColorFeature> colors1, List<ColorFeature> colors2)
+    {
+        if (!colors1.Any() || !colors2.Any())
+            return 0;
+
+        // Comparar los colores dominantes
+        double totalSimilarity = 0;
+        int comparisons = 0;
+
+        foreach (var color1 in colors1)
+        {
+            // Encontrar el color más similar en colors2
+            var maxSimilarity = colors2.Max(color2 =>
+                ColorSimilarity(color1, color2));
+
+            totalSimilarity += maxSimilarity * color1.PixelFraction;
+            comparisons++;
+        }
+
+        return comparisons > 0 ? totalSimilarity / comparisons : 0;
+    }
+
+    private double ColorSimilarity(ColorFeature c1, ColorFeature c2)
+    {
+        // Distancia euclidiana en espacio RGB normalizada
+        var dr = (c1.Red - c2.Red) / 255.0;
+        var dg = (c1.Green - c2.Green) / 255.0;
+        var db = (c1.Blue - c2.Blue) / 255.0;
+
+        var distance = Math.Sqrt(dr * dr + dg * dg + db * db);
+        var maxDistance = Math.Sqrt(3); // Distancia máxima en RGB normalizado
+
+        // Convertir distancia a similitud (1 = idéntico, 0 = muy diferente)
+        return 1 - (distance / maxDistance);
+    }
+
+    private double CalculateObjectSimilarity(List<ObjectFeature> objects1, List<ObjectFeature> objects2)
+    {
+        if (!objects1.Any() || !objects2.Any())
+            return 0;
+
+        // Similar a labels, pero con objetos específicos
+        var set1 = objects1.ToDictionary(o => o.Name.ToLower(), o => o.Score);
+        var set2 = objects2.ToDictionary(o => o.Name.ToLower(), o => o.Score);
+
+        var allObjects = set1.Keys.Union(set2.Keys).ToList();
+        double intersection = 0;
+        double union = 0;
+
+        foreach (var obj in allObjects)
+        {
+            var score1 = set1.GetValueOrDefault(obj, 0f);
+            var score2 = set2.GetValueOrDefault(obj, 0f);
+
+            intersection += Math.Min(score1, score2);
+            union += Math.Max(score1, score2);
+        }
+
+        return union > 0 ? intersection / union : 0;
+    }
+
+    private async Task<IEnumerable<int>> GetPopularLocalsAsync(int limit)
+    {
+        // Fallback: retornar locales aleatorios o los primeros disponibles
+        _logger.LogDebug("Using fallback: returning first {Limit} locals", limit);
+
+        var locals = await _localRepository.GetAllAsync();
+        return locals
+            .Take(limit)
+            .Select(l => l.Id);
+    }
+}

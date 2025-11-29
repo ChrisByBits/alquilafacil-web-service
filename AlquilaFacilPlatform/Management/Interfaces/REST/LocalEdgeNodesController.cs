@@ -14,7 +14,7 @@ namespace AlquilaFacilPlatform.Management.Interfaces.REST;
 public class LocalEdgeNodesController(ILocalEdgeNodeQueryService localEdgeNodeQueryService, 
                                     ILocalEdgeNodeCommandService localEdgeNodeCommandService): ControllerBase
 {
-    [Authorize(Roles = "Admin,Technician")]
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     public async Task<IActionResult> CreateLocalEdgeNode([FromBody] CreateLocalEdgeNodeResource resource)
     {
@@ -25,7 +25,7 @@ public class LocalEdgeNodesController(ILocalEdgeNodeQueryService localEdgeNodeQu
         return StatusCode(201, localEdgeNodeResource);
     }
     
-    [Authorize(Roles = "Admin,Technician")]
+    [Authorize(Roles = "Admin")]
     [HttpPut("{localId:int}")]
     public async Task<IActionResult> UpdateLocalEdgeNode(int localId, [FromBody] UpdateLocalEdgeNodeResource resource)
     {

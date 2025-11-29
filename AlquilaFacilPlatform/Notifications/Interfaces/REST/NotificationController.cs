@@ -21,12 +21,22 @@ public class NotificationController(INotificationCommandService notificationComm
         var notificationResources = notifications.Select(NotificationResourceFromEntityAssembler.ToResourceFromEntity);
         return Ok(notificationResources);
     }
-    
+
     [HttpDelete("{notificationId}")]
     public async Task<IActionResult> DeleteNotification(int notificationId)
     {
         var command = new DeleteNotificationCommand(notificationId);
         var notification = await notificationCommandService.Handle(command);
         return StatusCode(200, notification);
+    }
+
+    [HttpPatch("{notificationId}/read")]
+    public async Task<IActionResult> MarkAsRead(int notificationId)
+    {
+        var command = new MarkNotificationAsReadCommand(notificationId);
+        var notification = await notificationCommandService.Handle(command);
+        if (notification == null) return NotFound();
+        var notificationResource = NotificationResourceFromEntityAssembler.ToResourceFromEntity(notification);
+        return Ok(notificationResource);
     }
 }

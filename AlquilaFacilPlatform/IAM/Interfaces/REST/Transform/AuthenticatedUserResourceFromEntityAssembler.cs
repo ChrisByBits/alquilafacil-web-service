@@ -5,8 +5,8 @@ namespace AlquilaFacilPlatform.IAM.Interfaces.REST.Transform;
 
 public static class AuthenticatedUserResourceFromEntityAssembler
 {
-    public static AuthenticatedUserResource ToResourceFromEntity(User user, string token)
+    public static AuthenticatedUserResource ToResourceFromEntity(User user, string accessToken, string refreshToken)
     {
-        return new AuthenticatedUserResource(user.Id, user.Username, token);
+        return new AuthenticatedUserResource(user.Id, user.Username, accessToken, refreshToken);
     }
 }

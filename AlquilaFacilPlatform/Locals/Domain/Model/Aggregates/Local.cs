@@ -61,6 +61,8 @@ public partial class Local
         Features = command.Features;
         Capacity = command.Capacity;
         UserId = command.UserId;
+        Latitude = command.Latitude;
+        Longitude = command.Longitude;
     }
 
 
@@ -77,6 +79,8 @@ public partial class Local
         Features = command.Features;
         LocalCategoryId = command.LocalCategoryId;
         UserId = command.UserId;
+        Latitude = command.Latitude;
+        Longitude = command.Longitude;
     }
 
     public int Id { get; set; }
@@ -92,10 +96,19 @@ public partial class Local
     public int LocalCategoryId { get; set; }
     public int UserId { get; set; }
     public ICollection<LocalPhoto> LocalPhotos { get; set; } = new List<LocalPhoto>();
-    
+
+    // Google Maps coordinates
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+
     public string LocalName => Name.Value;
     public string DescriptionMessage => Description.Value;
     public string Address => $"{Street.Value}, {District.Value}, {City.Value}, {Country.Value}";
     public int Price => PricePerHour.Value;
-    
+
+    public void UpdateCoordinates(double? latitude, double? longitude)
+    {
+        Latitude = latitude;
+        Longitude = longitude;
+    }
 }

@@ -1,9 +1,14 @@
+using AlquilaFacilPlatform.Availability.Domain.Model.Aggregates;
 using AlquilaFacilPlatform.Booking.Domain.Model.Aggregates;
+using AlquilaFacilPlatform.Chat.Domain.Model.Aggregates;
+using AlquilaFacilPlatform.Contracts.Domain.Model.Aggregates;
+using AlquilaFacilPlatform.ImageManagement.Domain.Model.Aggregates;
 using AlquilaFacilPlatform.Shared.Infrastructure.Persistence.EFC.Configuration.Extensions;
 using AlquilaFacilPlatform.Subscriptions.Domain.Model.Aggregates;
 using AlquilaFacilPlatform.Subscriptions.Domain.Model.Entities;
 using AlquilaFacilPlatform.IAM.Domain.Model.Aggregates;
 using AlquilaFacilPlatform.IAM.Domain.Model.Entities;
+using RefreshToken = AlquilaFacilPlatform.IAM.Domain.Model.Entities.RefreshToken;
 using AlquilaFacilPlatform.Locals.Domain.Model.Aggregates;
 using AlquilaFacilPlatform.Locals.Domain.Model.Entities;
 using AlquilaFacilPlatform.Management.Domain.Model.Entities;
@@ -192,12 +197,13 @@ public class AppDbContext(DbContextOptions options) : DbContext(options)
                 e.WithOwner().HasForeignKey("Id");
                 e.Property(a => a.BirthDate).HasColumnName("BirthDate");
             });
-        
+        builder.Entity<Profile>().Property(p => p.AvatarUrl).HasMaxLength(500);
+
         builder.Entity<Profile>().HasOne<User>().WithOne().HasForeignKey<Profile>(p => p.UserId);
         
         
         //IAM Context
-        
+
         builder.Entity<User>().HasKey(u => u.Id);
         builder.Entity<User>().Property(u => u.Id).IsRequired().ValueGeneratedOnAdd();
         builder.Entity<User>().Property(u => u.Username).IsRequired();
@@ -208,6 +214,16 @@ public class AppDbContext(DbContextOptions options) : DbContext(options)
         builder.Entity<UserRole>().HasKey(ur => ur.Id);
         builder.Entity<UserRole>().Property(ur => ur.Id).IsRequired().ValueGeneratedOnAdd();
         builder.Entity<UserRole>().Property(ur => ur.Role).IsRequired();
+
+        // RefreshToken entity configuration
+        builder.Entity<RefreshToken>().HasKey(rt => rt.Id);
+        builder.Entity<RefreshToken>().Property(rt => rt.Id).IsRequired().ValueGeneratedOnAdd();
+        builder.Entity<RefreshToken>().Property(rt => rt.Token).IsRequired().HasMaxLength(256);
+        builder.Entity<RefreshToken>().Property(rt => rt.UserId).IsRequired();
+        builder.Entity<RefreshToken>().Property(rt => rt.ExpiresAt).IsRequired();
+        builder.Entity<RefreshToken>().Property(rt => rt.CreatedAt).IsRequired();
+        builder.Entity<RefreshToken>().Property(rt => rt.IsRevoked).IsRequired();
+        builder.Entity<RefreshToken>().HasOne<User>().WithMany().HasForeignKey(rt => rt.UserId);
 
 
         builder.Entity<Reservation>().HasKey(r => r.Id);
@@ -248,6 +264,127 @@ public class AppDbContext(DbContextOptions options) : DbContext(options)
         builder.Entity<LocalEdgeNode>().Property(l => l.LocalId).IsRequired();
         builder.Entity<LocalEdgeNode>().Property(l => l.EdgeNodeUrl).IsRequired().HasMaxLength(500);
         builder.Entity<LocalEdgeNode>().HasOne<Local>().WithMany().HasForeignKey(l => l.LocalId);
+
+        // Chat Context
+        builder.Entity<Conversation>().HasKey(c => c.Id);
+        builder.Entity<Conversation>().Property(c => c.Id).IsRequired().ValueGeneratedOnAdd();
+        builder.Entity<Conversation>().Property(c => c.ParticipantOneId).IsRequired();
+        builder.Entity<Conversation>().Property(c => c.ParticipantTwoId).IsRequired();
+        builder.Entity<Conversation>().Property(c => c.CreatedAt).IsRequired();
+        builder.Entity<Conversation>().HasOne<User>().WithMany().HasForeignKey(c => c.ParticipantOneId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<Conversation>().HasOne<User>().WithMany().HasForeignKey(c => c.ParticipantTwoId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<Conversation>()
+            .HasMany(c => c.Messages)
+            .WithOne(m => m.Conversation)
+            .HasForeignKey(m => m.ConversationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<Message>().HasKey(m => m.Id);
+        builder.Entity<Message>().Property(m => m.Id).IsRequired().ValueGeneratedOnAdd();
+        builder.Entity<Message>().Property(m => m.ConversationId).IsRequired();
+        builder.Entity<Message>().Property(m => m.SenderId).IsRequired();
+        builder.Entity<Message>().Property(m => m.Content).HasMaxLength(2000);
+        builder.Entity<Message>().Property(m => m.SentAt).IsRequired();
+        builder.Entity<Message>().Property(m => m.IsRead).IsRequired();
+        builder.Entity<Message>().Property(m => m.AttachmentUrl).HasMaxLength(500);
+        builder.Entity<Message>().Property(m => m.AttachmentType).HasMaxLength(50);
+        builder.Entity<Message>().Property(m => m.AttachmentFileName).HasMaxLength(255);
+        builder.Entity<Message>().Property(m => m.Reactions).HasMaxLength(2000);
+        builder.Entity<Message>().HasOne<User>().WithMany().HasForeignKey(m => m.SenderId).OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<ChatResponseMetric>().HasKey(m => m.Id);
+        builder.Entity<ChatResponseMetric>().Property(m => m.Id).IsRequired().ValueGeneratedOnAdd();
+        builder.Entity<ChatResponseMetric>().Property(m => m.UserId).IsRequired();
+        builder.Entity<ChatResponseMetric>().Property(m => m.ConversationId).IsRequired();
+        builder.Entity<ChatResponseMetric>().Property(m => m.FirstMessageAt).IsRequired();
+        builder.Entity<ChatResponseMetric>().Property(m => m.LastCalculatedAt).IsRequired();
+        builder.Entity<ChatResponseMetric>().HasOne<User>().WithMany().HasForeignKey(m => m.UserId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<ChatResponseMetric>().HasOne<Conversation>().WithMany().HasForeignKey(m => m.ConversationId).OnDelete(DeleteBehavior.Cascade);
+
+        // Contracts Context
+        builder.Entity<ContractTemplate>().HasKey(ct => ct.Id);
+        builder.Entity<ContractTemplate>().Property(ct => ct.Id).IsRequired().ValueGeneratedOnAdd();
+        builder.Entity<ContractTemplate>().Property(ct => ct.Title).IsRequired().HasMaxLength(200);
+        builder.Entity<ContractTemplate>().Property(ct => ct.Content).IsRequired();
+        builder.Entity<ContractTemplate>().Property(ct => ct.UserId).IsRequired();
+        builder.Entity<ContractTemplate>().Property(ct => ct.CreatedAt).IsRequired();
+        builder.Entity<ContractTemplate>().HasOne<User>().WithMany().HasForeignKey(ct => ct.UserId);
+
+        builder.Entity<ContractInstance>().HasKey(ci => ci.Id);
+        builder.Entity<ContractInstance>().Property(ci => ci.Id).IsRequired().ValueGeneratedOnAdd();
+        builder.Entity<ContractInstance>().Property(ci => ci.ContractTemplateId).IsRequired();
+        builder.Entity<ContractInstance>().Property(ci => ci.LocalId).IsRequired();
+        builder.Entity<ContractInstance>().Property(ci => ci.LandlordUserId).IsRequired();
+        builder.Entity<ContractInstance>().Property(ci => ci.TenantUserId).IsRequired();
+        builder.Entity<ContractInstance>().Property(ci => ci.ReservationId).IsRequired();
+        builder.Entity<ContractInstance>().Property(ci => ci.StartDate).IsRequired();
+        builder.Entity<ContractInstance>().Property(ci => ci.EndDate).IsRequired();
+        builder.Entity<ContractInstance>().Property(ci => ci.Status).IsRequired();
+        builder.Entity<ContractInstance>().Property(ci => ci.GeneratedContent).IsRequired();
+        builder.Entity<ContractInstance>().Property(ci => ci.CreatedAt).IsRequired();
+        builder.Entity<ContractInstance>().Property(ci => ci.LandlordSignature).HasMaxLength(2000);
+        builder.Entity<ContractInstance>().Property(ci => ci.TenantSignature).HasMaxLength(2000);
+        builder.Entity<ContractInstance>().Property(ci => ci.Version).IsRequired();
+        builder.Entity<ContractInstance>()
+            .HasOne(ci => ci.Template)
+            .WithMany()
+            .HasForeignKey(ci => ci.ContractTemplateId);
+        builder.Entity<ContractInstance>().HasOne<Local>().WithMany().HasForeignKey(ci => ci.LocalId);
+        builder.Entity<ContractInstance>().HasOne<User>().WithMany().HasForeignKey(ci => ci.LandlordUserId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<ContractInstance>().HasOne<User>().WithMany().HasForeignKey(ci => ci.TenantUserId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<ContractInstance>().HasOne<Reservation>().WithMany().HasForeignKey(ci => ci.ReservationId);
+
+        // ImageManagement Context
+        builder.Entity<Image>().HasKey(i => i.Id);
+        builder.Entity<Image>().Property(i => i.Id).IsRequired().ValueGeneratedOnAdd();
+        builder.Entity<Image>().Property(i => i.Url).IsRequired().HasMaxLength(500);
+        builder.Entity<Image>().Property(i => i.FileName).IsRequired().HasMaxLength(255);
+        builder.Entity<Image>().Property(i => i.ContentType).IsRequired().HasMaxLength(100);
+        builder.Entity<Image>().Property(i => i.FileSizeBytes).IsRequired();
+        builder.Entity<Image>().Property(i => i.StoragePath).IsRequired().HasMaxLength(500);
+        builder.Entity<Image>().Property(i => i.EntityType).IsRequired().HasMaxLength(50);
+        builder.Entity<Image>().Property(i => i.EntityId).IsRequired();
+        builder.Entity<Image>().Property(i => i.UploadedAt).IsRequired();
+        builder.Entity<Image>().Property(i => i.UploadedBy).IsRequired();
+        builder.Entity<Image>().Property(i => i.IsDeleted).IsRequired();
+        builder.Entity<Image>().HasOne<User>().WithMany().HasForeignKey(i => i.UploadedBy);
+
+        // Availability Context
+        builder.Entity<AvailabilityCalendar>().HasKey(ac => ac.Id);
+        builder.Entity<AvailabilityCalendar>().Property(ac => ac.Id).IsRequired().ValueGeneratedOnAdd();
+        builder.Entity<AvailabilityCalendar>().Property(ac => ac.LocalId).IsRequired();
+        builder.Entity<AvailabilityCalendar>().Property(ac => ac.StartDate).IsRequired();
+        builder.Entity<AvailabilityCalendar>().Property(ac => ac.EndDate).IsRequired();
+        builder.Entity<AvailabilityCalendar>().Property(ac => ac.IsAvailable).IsRequired();
+        builder.Entity<AvailabilityCalendar>().Property(ac => ac.Reason).HasMaxLength(500);
+        builder.Entity<AvailabilityCalendar>().Property(ac => ac.CreatedAt).IsRequired();
+        builder.Entity<AvailabilityCalendar>().Property(ac => ac.CreatedBy).IsRequired();
+        builder.Entity<AvailabilityCalendar>().HasOne<Local>().WithMany().HasForeignKey(ac => ac.LocalId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<AvailabilityCalendar>().HasOne<User>().WithMany().HasForeignKey(ac => ac.CreatedBy).OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<BlockedDate>().HasKey(bd => bd.Id);
+        builder.Entity<BlockedDate>().Property(bd => bd.Id).IsRequired().ValueGeneratedOnAdd();
+        builder.Entity<BlockedDate>().Property(bd => bd.LocalId).IsRequired();
+        builder.Entity<BlockedDate>().Property(bd => bd.Date).IsRequired();
+        builder.Entity<BlockedDate>().Property(bd => bd.Reason).IsRequired().HasMaxLength(500);
+        builder.Entity<BlockedDate>().Property(bd => bd.IsRecurring).IsRequired();
+        builder.Entity<BlockedDate>().Property(bd => bd.CreatedAt).IsRequired();
+        builder.Entity<BlockedDate>().Property(bd => bd.CreatedBy).IsRequired();
+        builder.Entity<BlockedDate>().HasOne<Local>().WithMany().HasForeignKey(bd => bd.LocalId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<BlockedDate>().HasOne<User>().WithMany().HasForeignKey(bd => bd.CreatedBy).OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<AvailabilityRule>().HasKey(ar => ar.Id);
+        builder.Entity<AvailabilityRule>().Property(ar => ar.Id).IsRequired().ValueGeneratedOnAdd();
+        builder.Entity<AvailabilityRule>().Property(ar => ar.LocalId).IsRequired();
+        builder.Entity<AvailabilityRule>().Property(ar => ar.DayOfWeek).IsRequired();
+        builder.Entity<AvailabilityRule>().Property(ar => ar.StartTime).IsRequired();
+        builder.Entity<AvailabilityRule>().Property(ar => ar.EndTime).IsRequired();
+        builder.Entity<AvailabilityRule>().Property(ar => ar.IsAvailable).IsRequired();
+        builder.Entity<AvailabilityRule>().Property(ar => ar.CreatedAt).IsRequired();
+        builder.Entity<AvailabilityRule>().Property(ar => ar.CreatedBy).IsRequired();
+        builder.Entity<AvailabilityRule>().HasOne<Local>().WithMany().HasForeignKey(ar => ar.LocalId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<AvailabilityRule>().HasOne<User>().WithMany().HasForeignKey(ar => ar.CreatedBy).OnDelete(DeleteBehavior.Restrict);
+
         // Apply SnakeCase Naming Convention
         builder.UseSnakeCaseWithPluralizedTableNamingConvention();
 

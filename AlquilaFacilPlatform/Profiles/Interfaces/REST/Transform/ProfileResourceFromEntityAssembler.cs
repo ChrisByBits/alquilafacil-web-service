@@ -9,11 +9,12 @@ public class ProfileResourceFromEntityAssembler
     public static ProfileResource ToResourceFromEntity(Profile entity)
     {
         return new ProfileResource(
-            entity.Id, 
-            entity.FullName, 
-            entity.PhoneNumber, 
-            entity.NumberDocument, 
-            entity.BirthDate
+            entity.Id,
+            entity.FullName,
+            entity.PhoneNumber,
+            entity.NumberDocument,
+            entity.BirthDate,
+            entity.AvatarUrl
             );
     }
 }

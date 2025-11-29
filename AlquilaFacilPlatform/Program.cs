@@ -1,8 +1,36 @@
+using AlquilaFacilPlatform.Availability.Application.Internal.CommandServices;
+using AlquilaFacilPlatform.Availability.Application.Internal.QueryServices;
+using AlquilaFacilPlatform.Availability.Domain.Repositories;
+using AlquilaFacilPlatform.Availability.Domain.Services;
+using AlquilaFacilPlatform.Availability.Infrastructure.Persistence.EFC.Repositories;
 using AlquilaFacilPlatform.Booking.Application.Internal.CommandServices;
 using AlquilaFacilPlatform.Booking.Application.Internal.QueryServices;
 using AlquilaFacilPlatform.Booking.Domain.Repositories;
 using AlquilaFacilPlatform.Booking.Domain.Services;
 using AlquilaFacilPlatform.Booking.Infrastructure.Persistence.EFC.Repositories;
+using AlquilaFacilPlatform.Chat.Application.Internal.CommandServices;
+using AlquilaFacilPlatform.Chat.Application.Internal.QueryServices;
+using AlquilaFacilPlatform.Chat.Domain.Repositories;
+using AlquilaFacilPlatform.Chat.Domain.Services;
+using AlquilaFacilPlatform.Chat.Infrastructure.Persistence.EFC.Repositories;
+using AlquilaFacilPlatform.Chat.Interfaces.REST.Hubs;
+using AlquilaFacilPlatform.Contracts.Application.Internal.CommandServices;
+using AlquilaFacilPlatform.Contracts.Application.Internal.QueryServices;
+using AlquilaFacilPlatform.Contracts.Application.Internal.Services;
+using AlquilaFacilPlatform.Contracts.Domain.Repositories;
+using AlquilaFacilPlatform.Contracts.Domain.Services;
+using AlquilaFacilPlatform.Contracts.Infrastructure.Persistence.EFC.Repositories;
+using AlquilaFacilPlatform.ImageManagement.Application.Internal.CommandServices;
+using AlquilaFacilPlatform.ImageManagement.Application.Internal.QueryServices;
+using AlquilaFacilPlatform.ImageManagement.Application.Internal.OutboundServices;
+using AlquilaFacilPlatform.ImageManagement.Domain.Repositories;
+using AlquilaFacilPlatform.ImageManagement.Domain.Services;
+using AlquilaFacilPlatform.ImageManagement.Infrastructure.Persistence.EFC.Repositories;
+using AlquilaFacilPlatform.ImageManagement.Infrastructure.Persistence.LocalStorage.Services;
+using AlquilaFacilPlatform.Recommendations.Application.Internal.OutboundServices;
+using AlquilaFacilPlatform.Recommendations.Application.Internal.QueryServices;
+using AlquilaFacilPlatform.Recommendations.Domain.Services;
+using AlquilaFacilPlatform.Recommendations.Infrastructure.External;
 using AlquilaFacilPlatform.IAM.Application.Internal.CommandServices;
 using AlquilaFacilPlatform.IAM.Application.Internal.OutboundServices;
 using AlquilaFacilPlatform.IAM.Application.Internal.QueryServices;
@@ -38,6 +66,7 @@ using AlquilaFacilPlatform.Notifications.Domain.Services;
 using AlquilaFacilPlatform.Notifications.Infrastructure.Persistence.EFC.Repositories;
 using AlquilaFacilPlatform.Notifications.Interfaces.ACL;
 using AlquilaFacilPlatform.Notifications.Interfaces.ACL.Services;
+using AlquilaFacilPlatform.Notifications.Interfaces.REST.Hubs;
 using AlquilaFacilPlatform.Profiles.Application.Internal.CommandServices;
 using AlquilaFacilPlatform.Profiles.Application.Internal.QueryServices;
 using AlquilaFacilPlatform.Profiles.Domain.Repositories;
@@ -176,9 +205,9 @@ builder.Services.Configure<TokenSettings>(builder.Configuration.GetSection("Toke
 builder.Services.AddScoped<IUserRoleRepository, UserRoleRepository>();
 builder.Services.AddScoped<ISeedUserRoleCommandService, SeedUserRoleCommandService>();
 builder.Services.AddScoped<ISeedAdminCommandService, SeedAdminCommandService>();
-builder.Services.AddScoped<ISeedTechnicianCommandService, SeedTechnicianCommandService>();
 
 builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 builder.Services.AddScoped<IUserCommandService, UserCommandService>();
 builder.Services.AddScoped<IUserQueryService, UserQueryService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
@@ -195,6 +224,7 @@ builder.Services.AddScoped<ILocalRepository, LocalRepository>();
 builder.Services.AddScoped<ILocalCategoryRepository, LocalCategoryRepository>();
 builder.Services.AddScoped<ILocalCategoryCommandService, LocalCategoryCommandService>();
 builder.Services.AddScoped<ILocalCategoryQueryService, LocalCategoryQueryService>();
+builder.Services.AddScoped<ISeedLocalsCommandService, SeedLocalsCommandService>();
 
 builder.Services.AddScoped<ICommentCommandService, CommentCommandService>();
 builder.Services.AddScoped<ICommentQueryService, CommentQueryService>();
@@ -254,6 +284,44 @@ builder.Services.AddScoped<ILocalEdgeNodeCommandService, LocalEdgeNodeCommandSer
 builder.Services.AddScoped<ILocalEdgeNodeQueryService, LocalEdgeNodeQueryService>();
 builder.Services.AddScoped<ILocalEdgeNodeRepository, LocalEdgeNodeRepository>();
 
+// Chat Bounded Context Injection Configuration
+builder.Services.AddScoped<IConversationRepository, ConversationRepository>();
+builder.Services.AddScoped<IMessageRepository, MessageRepository>();
+builder.Services.AddScoped<IChatResponseMetricRepository, ChatResponseMetricRepository>();
+builder.Services.AddScoped<IConversationCommandService, ConversationCommandService>();
+builder.Services.AddScoped<IConversationQueryService, ConversationQueryService>();
+builder.Services.AddScoped<IMessageCommandService, MessageCommandService>();
+builder.Services.AddScoped<IMessageQueryService, MessageQueryService>();
+builder.Services.AddScoped<IChatMetricsQueryService, ChatMetricsQueryService>();
+
+// Contracts Bounded Context Injection Configuration
+builder.Services.AddScoped<IContractTemplateRepository, ContractTemplateRepository>();
+builder.Services.AddScoped<IContractInstanceRepository, ContractInstanceRepository>();
+builder.Services.AddScoped<IContractTemplateCommandService, ContractTemplateCommandService>();
+builder.Services.AddScoped<IContractTemplateQueryService, ContractTemplateQueryService>();
+builder.Services.AddScoped<IContractInstanceCommandService, ContractInstanceCommandService>();
+builder.Services.AddScoped<IContractInstanceQueryService, ContractInstanceQueryService>();
+builder.Services.AddScoped<IContractPdfService, ContractPdfService>();
+
+// Recommendations Bounded Context Injection Configuration
+// Using HuggingFace CLIP model for CNN-based recommendations (free, no credit card required)
+// Alternative options: GoogleVisionCnnService (requires Google Cloud) or MockCnnRecommendationService (for testing)
+builder.Services.AddScoped<ICnnRecommendationService, HuggingFaceCnnService>();
+builder.Services.AddScoped<IRecommendationQueryService, RecommendationQueryService>();
+
+// ImageManagement Bounded Context Injection Configuration
+builder.Services.AddScoped<IImageRepository, ImageRepository>();
+builder.Services.AddScoped<IImageCommandService, ImageCommandService>();
+builder.Services.AddScoped<IImageQueryService, ImageQueryService>();
+builder.Services.AddScoped<IImageStorageService, LocalImageStorageService>();
+
+// Availability Bounded Context Injection Configuration
+builder.Services.AddScoped<IAvailabilityCalendarRepository, AvailabilityCalendarRepository>();
+builder.Services.AddScoped<IBlockedDateRepository, BlockedDateRepository>();
+builder.Services.AddScoped<IAvailabilityRuleRepository, AvailabilityRuleRepository>();
+builder.Services.AddScoped<IAvailabilityCommandService, AvailabilityCommandService>();
+builder.Services.AddScoped<IAvailabilityQueryService, AvailabilityQueryService>();
+
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
@@ -273,15 +341,16 @@ using (var scope = app.Services.CreateScope())
     
     var adminCommandService = services.GetRequiredService<ISeedAdminCommandService>();
     await adminCommandService.Handle(new SeedAdminCommand());
-    
-    var technicianCommandService = services.GetRequiredService<ISeedTechnicianCommandService>();
-    await technicianCommandService.Handle(new SeedTechnicianCommand());
-    
+
     var localCategoryTypeCommandService = services.GetRequiredService<ILocalCategoryCommandService>();
     await localCategoryTypeCommandService.Handle(new SeedLocalCategoriesCommand());
-    
+
     var sensorTypeCommandService = services.GetRequiredService<ISeedSensorTypeCommandService>();
     await sensorTypeCommandService.Handle(new SeedSensorTypesCommand());
+
+    // Seed sample locals
+    var seedLocalsCommandService = services.GetRequiredService<ISeedLocalsCommandService>();
+    await seedLocalsCommandService.Handle(new SeedLocalsCommand());
 }
 
 // Configure the HTTP request pipeline.
@@ -303,5 +372,7 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.MapHub<ReadingHub>(SignalRRoutes.ReadingHub);
+app.MapHub<ChatHub>("/hubs/chat");
+app.MapHub<NotificationHub>("/hubs/notifications");
 
 app.Run();

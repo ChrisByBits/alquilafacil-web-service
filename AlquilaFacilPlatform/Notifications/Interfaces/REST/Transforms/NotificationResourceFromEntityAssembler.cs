@@ -12,7 +12,9 @@ public static class NotificationResourceFromEntityAssembler
             notification.Id,
             notification.Title,
             notification.Description,
-            notification.UserId
+            notification.UserId,
+            notification.IsRead,
+            notification.CreatedAt
         );
     }
 }

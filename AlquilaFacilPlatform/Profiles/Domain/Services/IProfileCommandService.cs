@@ -7,4 +7,5 @@ public interface IProfileCommandService
 {
     public Task<Profile?> Handle(CreateProfileCommand command);
     public Task<Profile> Handle(UpdateProfileCommand command);
+    public Task<Profile> Handle(UpdateProfileAvatarCommand command);
 }

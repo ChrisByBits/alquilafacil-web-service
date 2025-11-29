@@ -43,8 +43,18 @@ public class ReservationCommandService(
      {
             throw new BadHttpRequestException("User is the owner of the local, he cannot make a reservation");
      }
-     
-     
+
+     // Check for overlapping reservations
+     var hasOverlap = await reservationRepository.HasOverlappingReservationAsync(
+         command.LocalId,
+         command.StartDate,
+         command.EndDate
+     );
+
+     if (hasOverlap)
+     {
+         throw new BadHttpRequestException("Ya existe una reserva para este local en las fechas seleccionadas. Por favor, elige otras fechas.");
+     }
 
      var reservationCreated = new Reservation(command);
      await reservationRepository.AddAsync(reservationCreated);
@@ -79,6 +89,20 @@ public class ReservationCommandService(
         {
             throw new Exception("Reservation does not exist");
         }
+
+        // Check for overlapping reservations (excluding the current reservation)
+        var hasOverlap = await reservationRepository.HasOverlappingReservationAsync(
+            reservationToUpdate.LocalId,
+            reservation.StartDate,
+            reservation.EndDate,
+            reservation.Id
+        );
+
+        if (hasOverlap)
+        {
+            throw new BadHttpRequestException("Ya existe una reserva para este local en las fechas seleccionadas. Por favor, elige otras fechas.");
+        }
+
         reservationToUpdate.UpdateDate(reservation);
         reservationRepository.Update(reservationToUpdate);
         await unitOfWork.CompleteAsync();

@@ -37,10 +37,5 @@ namespace AlquilaFacilPlatform.IAM.Domain.Model.Aggregates
         {
             RoleId = (int)EUserRoles.Admin;
         }
-        
-        public void UpgradeToTechnician()
-        {
-            RoleId = (int)EUserRoles.Technician;
-        }
     }
 }

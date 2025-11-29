@@ -27,4 +27,16 @@ public class ProfileCommandService(IProfileRepository profileRepository, IUnitOf
         await unitOfWork.CompleteAsync();
         return profile;
     }
+
+    public async Task<Profile> Handle(UpdateProfileAvatarCommand command)
+    {
+        var profile = await profileRepository.FindByIdAsync(command.ProfileId);
+        if (profile == null)
+        {
+            throw new Exception("Profile does not exist");
+        }
+        profile.UpdateAvatar(command.AvatarUrl);
+        await unitOfWork.CompleteAsync();
+        return profile;
+    }
 }

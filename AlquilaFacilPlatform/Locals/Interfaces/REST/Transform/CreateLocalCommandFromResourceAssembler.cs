@@ -19,7 +19,9 @@ public static class CreateLocalCommandFromResourceAssembler
             resource.PhotoUrls,
             resource.Features,
             resource.LocalCategoryId,
-            resource.UserId
+            resource.UserId,
+            resource.Latitude,
+            resource.Longitude
         );
     }
 }

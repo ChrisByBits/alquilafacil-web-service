@@ -12,4 +12,7 @@ public interface ILocalRepository : IBaseRepository<Local>
     Task<IEnumerable<Local>> GetLocalsByUserIdAsync(int userId);
     Task<bool> IsOwnerAsync(int userId, int localId);
     Task<int?> GetLocalOwnerIdByLocalId(int localId);
+    Task<Local?> FindByIdAsync(int id);
+    Task<IEnumerable<Local>> FindByLocalCategoryIdAsync(int categoryId);
+    Task<IEnumerable<Local>> GetAllAsync();
 }

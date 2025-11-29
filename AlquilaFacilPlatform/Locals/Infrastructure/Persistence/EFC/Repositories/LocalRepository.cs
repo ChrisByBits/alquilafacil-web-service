@@ -60,4 +60,26 @@ public class LocalRepository(AppDbContext context) : BaseRepository<Local>(conte
     {
         return await Context.Set<Local>().Where(x => x.Id == localId).Select(x => x.UserId).FirstOrDefaultAsync();
     }
+
+    public async Task<Local?> FindByIdAsync(int id)
+    {
+        return await Context.Set<Local>()
+            .Include(x => x.LocalPhotos)
+            .FirstOrDefaultAsync(x => x.Id == id);
+    }
+
+    public async Task<IEnumerable<Local>> FindByLocalCategoryIdAsync(int categoryId)
+    {
+        return await Context.Set<Local>()
+            .Where(x => x.LocalCategoryId == categoryId)
+            .Include(x => x.LocalPhotos)
+            .ToListAsync();
+    }
+
+    public async Task<IEnumerable<Local>> GetAllAsync()
+    {
+        return await Context.Set<Local>()
+            .Include(x => x.LocalPhotos)
+            .ToListAsync();
+    }
 }
