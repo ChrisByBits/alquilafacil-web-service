@@ -4,9 +4,10 @@ EXPOSE 8080
 
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
-COPY ["AlquilaFacilPlatform.csproj", "."]
-RUN dotnet restore "AlquilaFacilPlatform.csproj"
+COPY ["AlquilaFacilPlatform/AlquilaFacilPlatform.csproj", "AlquilaFacilPlatform/"]
+RUN dotnet restore "AlquilaFacilPlatform/AlquilaFacilPlatform.csproj"
 COPY . .
+WORKDIR "/src/AlquilaFacilPlatform"
 RUN dotnet build "AlquilaFacilPlatform.csproj" -c Release -o /app/build
 
 FROM build AS publish
