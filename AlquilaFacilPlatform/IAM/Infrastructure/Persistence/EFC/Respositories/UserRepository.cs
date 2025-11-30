@@ -35,9 +35,14 @@ public class UserRepository (AppDbContext context) : BaseRepository<User>(contex
      * <param name="username">The username to search</param>
      * <returns>True if the user exists, false otherwise</returns>
      */
+    public async Task<User?> FindByUsername(string username)
+    {
+        return await Context.Set<User>().FirstOrDefaultAsync(user => user.Username == username);
+    }
+
     public async Task<bool> ExistsByUsername(string username)
     {
-        return Context.Set<User>().Any(user => user.Username.Equals(username));
+        return await Context.Set<User>().AnyAsync(user => user.Username.Equals(username));
     }
 
     public async Task<string?> GetUsernameByIdAsync(int userId)
